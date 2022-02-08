@@ -248,15 +248,15 @@ abstract contract Context {
 
 // Begin ERC20 Contract Functions -- Adapted from https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/master/contracts/token/ERC20/ERC20.sol
 
-contract ERC20 is Context, IERC20 {
+contract ERC20 is Context, IERC20, MinterRole {
     using SafeMath for uint256;
 
     mapping(address => uint256) private _balances;
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
-    // Define Super Reality wallet
-    address internal src_address;
+    // Define source wallet
+    address internal _sourceAddress;
 
     uint256 private _totalSupply;
 
@@ -264,10 +264,53 @@ contract ERC20 is Context, IERC20 {
     string private _symbol;
     uint8 private _decimals;
 
-    constructor(string memory name_, string memory symbol_) {
+    bool private _publicMintState;
+
+    constructor(
+        address sourceAddress,
+        string memory name_,
+        string memory symbol_
+    ) {
         _name = name_;
         _symbol = symbol_;
         _decimals = 0;
+        _sourceAddress = sourceAddress;
+    }
+
+    function allowPublicMint(bool state) public {
+        require(
+            msg.sender == address(_sourceAddress),
+            "Only approved for The source wallet."
+        );
+        _publicMintState = state;
+    }
+
+    function getPublicMint() public view returns (bool) {
+        return _publicMintState;
+    }
+
+    function awardXP(address to, uint256 value) public onlyMinter {
+        _mint(to, value);
+    }
+
+    function deleteMinter(address minter) public onlyMinter {
+        _removeMinter(minter);
+    }
+
+    function burn(address account, uint256 amount) public onlyMinter {
+        _burn(account, amount);
+    }
+
+    function setSourceAddress(address src) public {
+        setSourceAddress(src, false);
+    }
+
+    function setSourceAddress(address src, bool isConstructor) internal {
+        require(
+            msg.sender == address(_sourceAddress) || isConstructor,
+            "Only approved for The source wallet."
+        );
+        _sourceAddress = src;
     }
 
     /**
@@ -420,8 +463,8 @@ contract ERC20 is Context, IERC20 {
     function _burn(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: burn from the zero address");
         require(
-            msg.sender == address(src_address),
-            "Only approved for Super Reality wallet."
+            msg.sender == address(_sourceAddress),
+            "Only approved for source wallet."
         );
         _beforeTokenTransfer(account, address(0), amount);
 
@@ -456,60 +499,4 @@ contract ERC20 is Context, IERC20 {
         address to,
         uint256 amount
     ) internal virtual {}
-}
-
-// Begin XR contract construction
-
-pragma solidity >=0.8;
-
-contract XP is ERC20, MinterRole {
-    bool publicMintState;
-
-    constructor(address srAddress) ERC20("XP", "XP") {
-        setSourceAddress(srAddress, true);
-    }
-
-    function allowPublicMint(bool _state) public {
-        require(
-            msg.sender == address(src_address),
-            "Only approved for The Super Reality wallet."
-        );
-        publicMintState = _state;
-    }
-
-    function getPublicMint() public view returns (bool) {
-        return publicMintState;
-    }
-
-    function awardXP(address to, uint256 value)
-        public
-        onlyMinter
-    {
-        _mint(to, value);
-    }
-
-    function deleteMinter(address minter) public onlyMinter {
-        _removeMinter(minter);
-    }
-
-    function burn(address account, uint256 amount)
-        public
-        onlyMinter
-    {
-        _burn(account, amount);
-    }
-
-    function setSourceAddress(address _src) public {
-        setSourceAddress(_src, false);
-    }
-
-    function setSourceAddress(address _src, bool isConstructor)
-        internal
-    {
-        require(
-            msg.sender == address(src_address) || isConstructor,
-            "Only approved for The Super Reality wallet."
-        );
-        src_address = _src;
-    }
 }
